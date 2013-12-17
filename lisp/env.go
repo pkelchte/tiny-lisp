@@ -1,4 +1,4 @@
-// H25.3/18 - 3/28 (鈴)
+// H25.3/18 - 4/15 (鈴)
 
 // このファイルは Lisp の環境と評価器を実装する。
 
@@ -6,18 +6,23 @@ package lisp
 
 import (
 	"fmt"
+	"sync"
 )
 
 // 環境. 現在の束縛変数に対する Table と自由変数に対する Next からなる。
+// Table を参照するときは Lock で排他すること。
 type Env struct {
 	Table map[*Symbol]Any
 	Next  *Env
+	Lock  sync.Mutex
 }
 
 // シンボルに対する値を環境から得る。無ければパニックする。
 func (env *Env) Get(sym *Symbol) Any {
 	for ; env != nil; env = env.Next {
+		env.Lock.Lock()
 		val, ok := env.Table[sym]
+		env.Lock.Unlock()
 		if ok {
 			return val
 		}
@@ -29,14 +34,19 @@ func (env *Env) Get(sym *Symbol) Any {
 // 未定義のシンボルをトップレベル以外でセットするとパニックする。
 func (env *Env) Set(sym *Symbol, val Any) {
 	for ev := env; ev != nil; ev = ev.Next {
+		ev.Lock.Lock()
 		_, ok := ev.Table[sym]
 		if ok {
 			ev.Table[sym] = val
+			ev.Lock.Unlock()
 			return
 		}
+		ev.Lock.Unlock()
 	}
 	if env.Next == nil { // トップレベルの環境ならば
+		env.Lock.Lock()
 		env.Table[sym] = val
+		env.Lock.Unlock()
 		return
 	}
 	panic(fmt.Errorf("global symbol created locally: %s", sym.string))

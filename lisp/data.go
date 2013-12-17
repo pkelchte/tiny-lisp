@@ -1,4 +1,4 @@
-// H25.3/18 - 4/1 (鈴)
+// H25.3/18 - 4/15 (鈴)
 
 // このファイルは cons セルとシンボルその他データを実装する。
 
@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // 任意の型.
@@ -33,14 +34,17 @@ func Cons(car Any, cdr *Cell) *Cell {
 }
 
 var symbols = make(map[string]*Symbol)
+var lock sync.Mutex
 
 // 文字列からシンボルを作る。
 func NewSymbol(name string) *Symbol {
+	lock.Lock()
 	sym, ok := symbols[name]
 	if !ok {
 		sym = &Symbol{name}
 		symbols[name] = sym
 	}
+	lock.Unlock()
 	return sym
 }
 

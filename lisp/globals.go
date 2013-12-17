@@ -1,4 +1,4 @@
-// H25.3/18 - 4/1 (鈴)
+// H25.3/18 - 4/15 (鈴)
 
 // このファイルはトップレベルの環境を実装する。
 
@@ -7,6 +7,7 @@ package lisp
 import (
 	"github.com/pkelchte/tiny-lisp/arith"
 	"fmt"
+	"sync"
 )
 
 // トップレベルの環境
@@ -30,7 +31,8 @@ var Globals = &Env{map[*Symbol]Any{
 	NewSymbol("lambda"): lambdaForm, NewSymbol("let"): letForm,
 	NewSymbol("defun"): defunForm,
 	NewSymbol("apply"): applyForm, NewSymbol("and"): andForm,
-}, nil}
+	NewSymbol("future"): futureForm, NewSymbol("force"): forceFunc,
+}, nil, sync.Mutex{}}
 
 // 一般の関数
 
@@ -197,7 +199,7 @@ func lambdaForm(x *Cell, lambdaEnv *Env) (Any, *Env) {
 	}
 	return func(args *Cell, argsEnv *Env) (Any, *Env) {
 		table := makeArgTable(params, args, argsEnv)
-		return prognForm(b, &Env{table, lambdaEnv})
+		return prognForm(b, &Env{table, lambdaEnv, sync.Mutex{}})
 	}, nil
 }
 
@@ -217,7 +219,7 @@ func letForm(x *Cell, env *Env) (Any, *Env) {
 				StringFor(v)))
 		}
 	}
-	return prognForm(b, &Env{table, env})
+	return prognForm(b, &Env{table, env, sync.Mutex{}})
 }
 
 // (defun name ([variable...]) expession...)
@@ -249,6 +251,40 @@ func andForm(x *Cell, env *Env) (Any, *Env) {
 		}
 	}
 	return x.Car, env
+}
+
+// (future expession)
+func futureForm(x *Cell, env *Env) (Any, *Env) {
+	a := CheckForUnary(x)
+	ch := make(chan Any)
+	go futureTask(a, env, ch)
+	return &Future{ch, nil, sync.Mutex{}}, nil
+}
+
+type Future struct {
+	Ch     <-chan Any
+	Result Any
+	Lock   sync.Mutex
+}
+
+func futureTask(a Any, env *Env, ch chan<- Any) {
+	ch <- env.Eval(a)
+	close(ch)
+}
+
+// (force expession)
+func forceFunc(a []Any) Any {
+	CheckArity(1, a)
+	if fu, ok := a[0].(*Future); ok {
+		fu.Lock.Lock()
+		if fu.Ch != nil {
+			fu.Result = <-fu.Ch
+			fu.Ch = nil
+		}
+		fu.Lock.Unlock()
+		return fu.Result
+	}
+	return a[0]
 }
 
 // 各種ユーティリティ
