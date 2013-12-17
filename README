@@ -1,0 +1,54 @@
+これは Go 1.0.3 による小さな Lisp インタープリタである。
+
+  $ go build tiny-lisp.go
+
+とすると実行ファイル tiny-lisp ができる。
+八女王問題の解の個数を求める
+
+  $ ./tiny-lisp 8queens.l
+  92
+  $
+
+ハイフンを与えるとスクリプト実行後に対話セッションに入る。
+
+  $ ./tiny-lisp 8queens.l -
+  92
+  > (nqueens 4)
+  (nqueens 4) => ((3 1 4 2) (2 4 1 3))
+  >
+
+セッションを終えるには Control-D を打つ。
+無引数で起動しても対話セッションに入る。
+
+  $ ./tiny-lisp
+  > (+ 5 6)
+  (+ 5 6) => 11
+  > (/ 12 10)
+  (/ 12 10) => 6/5 /*=1.2*/
+  >
+
+今のところ数はすべて無限精度の有理数として扱う。
+
+  $ go build tiny-lisp-prof.go
+
+とするとプロファイルする tiny-lisp-prof ができる。
+これを実行すると cpu-profile ファイルが作られる。
+これを Go の pprof にかけて実行内容を分析できる。
+
+  $ ./tiny-lisp-prof 8queens.l
+  92
+  $ /usr/local/go/misc/pprof tiny-lisp-prof cpu-profile
+  Welcome to pprof!  For help, type 'help'.
+  (pprof) top10
+  Total: 192 samples
+        42  21.9%  21.9%       42  21.9% runtime.nanotime
+        26  13.5%  35.4%      180  93.8% lisp.(*Env).Eval
+        12   6.2%  41.7%       20  10.4% hash_lookup
+         9   4.7%  46.4%        9   4.7% runtime.memhash
+         7   3.6%  50.0%       31  16.1% runtime.mapaccess
+         6   3.1%  53.1%        8   4.2% copyout
+         6   3.1%  56.2%        6   3.1% scanblock
+         6   3.1%  59.4%        6   3.1% stkbucket
+         4   2.1%  61.5%        8   4.2% runtime.MCache_Alloc
+         4   2.1%  63.5%        5   2.6% runtime.MCache_Free
+  (pprof) 
